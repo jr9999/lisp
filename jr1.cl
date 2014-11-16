@@ -36,3 +36,63 @@
    (y-or-n-p "Ripped (y/n)")))
 
 
+(defun add-cds ()
+  (loop (add-record (prompt-for-cd))
+     (if (not (y-or-n-p "Another? [y/n]: ")) (return))))
+
+(defun save-db (filename)
+  (with-open-file (out filename
+		       :direction :output
+		       :if-exists :supersede)
+    (with-standard-io-syntax
+      (print *db* out))))
+
+;setf is main assignment operator
+;warning-this currently clobbers current value of *db*
+(defun load-db (filename)
+  (with-open-file (in filename)
+    (with-standard-io-syntax
+      (setf *db* (read in)))))
+
+;first pass at selection
+; #' says give me function named by - in case of lambda it points to lamba function definition
+(defun select-by-artist1 (artist)
+  (remove-if-not
+   #'(lambda (cd) (equal (getf cd :artist) artist))
+   *db*))
+
+;more general selector
+(defun select (selector-fn)
+  (remove-if-not selector-fn *db*))
+
+;wrap up the creation of the anonymous function
+(defun artist-selector (artist)
+  #'(lambda (cd) (equal (getf cd :artist) artist)))
+
+
+;first pass at where clause...
+(defun where1 (&key title artist rating (ripped nil ripped-p))
+  #'(lambda (cd)
+      (and
+       (if title (equal (getf cd :title) title) t)
+       (if artist (equal (getf cd :artist) title) t)
+       (if rating (equal (getf cd :rating) rating) t)
+       (if ripped-p (equal (getf cd :ripped) ripped) t))))
+
+;ex (update1 where1 :artist "Dixie Chicks' :rating 11)
+(defun update1 (selector-fn &key title artist rating (ripped nil ripped-p))
+  (setf *db*
+	(mapcar
+	 #'(lambda (row)
+	     (when (funcall selector-fn row)
+	       (if title (setf (getf row :title) title));set a field on the row being returned
+	       (if artist (setf (getf row :artist) artist))
+	       (if rating (setf (getf row :rating) rating))
+	       (if ripped-p (setf (getf row :ripped) ripped)))
+	     ;mapcar creates a row from the above fields and puts it into db
+	     row) 
+	 *db*)))
+
+(defun delete-rows (selector-fn)
+  (setf *db* (remove-if selector-fn *db*)))
+
